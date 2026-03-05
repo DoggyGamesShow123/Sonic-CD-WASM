@@ -6,8 +6,8 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <title>Sonic CD</title>
 
-    <!-- (Optional) Upstream referenced a fonts.css in /css; keep or remove as needed -->
-    <link type="text/css" rel="stylesheet" href="css/fonts.css" />
+    <!-- Optional: keep/remove if you have a fonts.css -->
+    <!-- <link type="text/css" rel="stylesheet" href="css/fonts.css" /> -->
 
     <style type="text/css">
       html, body {
@@ -20,8 +20,6 @@
         background-color: #000;
         text-align: center;
       }
-
-      /* Canvas scaling similar to upstream */
       canvas {
         height: 100%;
         margin: auto;
@@ -35,7 +33,6 @@
         image-rendering: crisp-edges;
         image-rendering: pixelated;
       }
-
       .spinner {
         height: 30px;
         width: 30px;
@@ -50,12 +47,10 @@
         border-radius: 100%;
         background-color: rgb(189, 215, 46);
       }
-
       @keyframes rotation {
         from { transform: rotate(0deg); }
         to   { transform: rotate(360deg); }
       }
-
       #status {
         display: inline-block;
         vertical-align: top;
@@ -64,22 +59,55 @@
         font-weight: bold;
         color: rgb(120, 120, 120);
       }
-
       #progress {
         height: 20px;
         width: 300px;
       }
-
       #output {
         width: 100%;
         height: 200px;
         margin: 10px auto 0;
-        display: none; /* keep hidden like upstream */
+        display: none; /* hidden by default like upstream */
         background-color: black;
         color: white;
         font-family: 'Lucida Console', Monaco, monospace;
         outline: none;
       }
+
+      /* === In‑Page Dev Tools styles === */
+      #devtools_toggle {
+        position: fixed; z-index: 99998; right: 12px; bottom: 12px;
+        background: #1f2937; color: #fff; border: 1px solid #374151; border-radius: 6px;
+        padding: 8px 10px; font: 12px/1.2 system-ui, sans-serif; cursor: pointer; opacity: .85;
+      }
+      #devtools_toggle:hover { opacity: 1; }
+      #devtools_panel {
+        position: fixed; z-index: 99999; right: 12px; bottom: 52px; width: 420px; max-height: 70vh;
+        background: #0b0f14; color: #e5e7eb; border: 1px solid #374151; border-radius: 8px;
+        display: block; /* 🔛 ON by default */
+        box-shadow: 0 10px 30px rgba(0,0,0,.5);
+      }
+      #devtools_header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 10px; background: #111827; border-bottom: 1px solid #374151; cursor: move;
+        user-select: none; border-top-left-radius: 8px; border-top-right-radius: 8px;
+      }
+      #devtools_body { padding: 8px 10px; overflow: auto; max-height: calc(70vh - 42px); }
+      #devtools_body input, #devtools_body select, #devtools_body button, #devtools_body textarea {
+        font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      }
+      .devtools-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+      .devtools-col { flex: 1 1 180px; min-width: 0; }
+      .devtools-btn { background: #2563eb; color: #fff; border: 1px solid #1d4ed8; border-radius: 4px; padding: 5px 8px; cursor: pointer; }
+      .devtools-btn.secondary { background: #374151; border-color: #4b5563; }
+      .devtools-btn.danger { background: #dc2626; border-color: #b91c1c; }
+      .devtools-input, .devtools-select { background: #0b1220; color: #e5e7eb; border: 1px solid #374151; border-radius: 4px; padding: 5px 6px; width: 100%; box-sizing: border-box; }
+      .devtools-log { width: 100%; height: 120px; resize: vertical; background: #0b1220; color: #d1d5db; border: 1px solid #374151; border-radius: 4px; padding: 6px; }
+      .devtools-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; white-space: pre; }
+      .devtools-sep { height: 1px; background: #374151; margin: 8px 0; }
+      .devtools-badge { padding: 2px 6px; border-radius: 999px; background: #374151; color: #e5e7eb; font-size: 11px; }
+      .devtools-list { background: #0b1220; border: 1px solid #374151; border-radius: 4px; padding: 6px; max-height: 120px; overflow: auto; }
+      .devtools-list code { display: block; color: #93c5fd; }
     </style>
   </head>
 
@@ -94,8 +122,8 @@
 
     <textarea id="output" rows="8"></textarea>
 
+    <!-- Upstream-style wiring -->
     <script type="text/javascript">
-      // Service worker from upstream page
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').then(function (registration) {
           registration.addEventListener('updatefound', function () {
@@ -113,13 +141,12 @@
       var progressElement = document.getElementById('progress');
       var spinnerElement  = document.getElementById('spinner');
 
-      // Emscripten Module setup (unchanged in spirit from upstream)
       var Module = {
         preRun:  [],
         postRun: [],
         print: (function () {
           var element = document.getElementById('output');
-          if (element) element.value = ''; // clear on load
+          if (element) element.value = '';
           return function (text) {
             if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
             console.log(text);
@@ -182,9 +209,269 @@
       };
     </script>
 
-    <!-- 🔹 NEW: Persisted save system (IDBFS) must load BEFORE the Emscripten glue -->
+    <!-- 🔹 Persisted save system: must load BEFORE the Emscripten glue -->
     <script src="save.js"></script>
-    <!-- 🔹 Keep the Emscripten glue last -->
+
+    <!-- === BEGIN: In-Page Dev Tools (ON by default) === -->
+    <button id="devtools_toggle" title="Toggle Dev Tools (or press ~)">Dev Tools</button>
+    <div id="devtools_panel" role="dialog" aria-label="In-Page Dev Tools">
+      <div id="devtools_header">
+        <div>
+          <strong>In‑Page Dev Tools</strong>
+          <span id="devtools_status" class="devtools-badge">loading…</span>
+        </div>
+        <div>
+          <button id="devtools_close" class="devtools-btn secondary" title="Close">×</button>
+        </div>
+      </div>
+      <div id="devtools_body">
+        <!-- Console -->
+        <div class="devtools-row"><div class="devtools-col"><strong>Console</strong></div></div>
+        <div class="devtools-row"><textarea id="devtools_console" class="devtools-log" readonly></textarea></div>
+        <div class="devtools-row">
+          <input id="devtools_cmd" class="devtools-input" placeholder="> Run JS here (e.g., Module.FS.readdir('/'))" />
+          <button id="devtools_run" class="devtools-btn">Run</button>
+          <button id="devtools_clear" class="devtools-btn secondary">Clear</button>
+        </div>
+
+        <div class="devtools-sep"></div>
+
+        <!-- FS Quick Actions -->
+        <div class="devtools-row"><div class="devtools-col"><strong>Filesystem (Emscripten)</strong></div></div>
+        <div class="devtools-row">
+          <button class="devtools-btn" id="btn_list_root">List /</button>
+          <button class="devtools-btn" id="btn_list_idb">List /idb</button>
+          <button class="devtools-btn secondary" id="btn_populate">Populate ⬇︎ (syncfs(true))</button>
+          <button class="devtools-btn secondary" id="btn_flush">Flush ⬆︎ (syncfs(false))</button>
+        </div>
+        <div class="devtools-row">
+          <div class="devtools-col">
+            <input id="devtools_path" class="devtools-input" placeholder="/SData.bin (path to view/download/delete)" />
+          </div>
+          <button class="devtools-btn" id="btn_view_utf8">View UTF‑8</button>
+          <button class="devtools-btn" id="btn_view_hex">View Hex</button>
+          <button class="devtools-btn" id="btn_download">Download</button>
+          <button class="devtools-btn danger" id="btn_delete">Delete</button>
+        </div>
+        <div class="devtools-row">
+          <input type="file" id="devtools_file" class="devtools-input" />
+          <input id="devtools_target" class="devtools-input" placeholder="Target path (e.g., /SData.bin)" />
+          <button class="devtools-btn" id="btn_upload">Upload → FS</button>
+        </div>
+        <div class="devtools-row">
+          <div id="devtools_fsinfo" class="devtools-mono"></div>
+        </div>
+        <div class="devtools-row">
+          <div class="devtools-col">
+            <div id="devtools_list" class="devtools-list devtools-mono"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    (function () {
+      // --- UI wiring ---------------------------------------------------------
+      const $ = (s) => document.querySelector(s);
+      const panel = $('#devtools_panel');
+      const toggle = $('#devtools_toggle');
+      const closeBtn = $('#devtools_close');
+      const header = $('#devtools_header');
+      const statusBadge = $('#devtools_status');
+      const logEl = $('#devtools_console');
+      const cmdEl = $('#devtools_cmd');
+
+      function showPanel(show) { panel.style.display = show ? 'block' : 'none'; }
+      // 🔛 Default ON
+      showPanel(true);
+
+      toggle.addEventListener('click', () => showPanel(panel.style.display === 'none'));
+      closeBtn.addEventListener('click', () => showPanel(false));
+      document.addEventListener('keydown', (e) => {
+        if (e.key === '`' || e.key === '~') {
+          e.preventDefault();
+          showPanel(panel.style.display === 'none');
+        }
+      });
+
+      // Draggable header
+      (function makeDraggable() {
+        let ox=0, oy=0, dragging=false;
+        header.addEventListener('mousedown', (e) => {
+          dragging = true; ox = e.clientX - panel.offsetLeft; oy = e.clientY - panel.offsetTop;
+          document.body.style.userSelect = 'none';
+        });
+        window.addEventListener('mouseup', () => { dragging=false; document.body.style.userSelect = ''; });
+        window.addEventListener('mousemove', (e) => {
+          if (!dragging) return;
+          panel.style.right = 'auto'; panel.style.bottom = 'auto';
+          panel.style.left = Math.max(0, e.clientX - ox) + 'px';
+          panel.style.top  = Math.max(0, e.clientY - oy) + 'px';
+        });
+      })();
+
+      // --- Console capture ---------------------------------------------------
+      const orig = {
+        log: console.log.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console)
+      };
+      function appendLog(type, args) {
+        const line = `[${type}] ${Array.from(args).map(a => {
+          try { return (typeof a === 'string') ? a : JSON.stringify(a); }
+          catch { return String(a); }
+        }).join(' ')}`;
+        logEl.value += (logEl.value ? '\n' : '') + line;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      console.log = (...a)=>{ appendLog('log', a); orig.log(...a); };
+      console.warn = (...a)=>{ appendLog('warn', a); orig.warn(...a); };
+      console.error = (...a)=>{ appendLog('error', a); orig.error(...a); };
+
+      $('#devtools_run').addEventListener('click', () => {
+        const code = cmdEl.value;
+        try {
+          const result = Function('"use strict";return (' + code + ')')();
+          console.log('> ', code, '\n= ', result);
+        } catch (e) {
+          console.error('Eval error:', e);
+        }
+      });
+      $('#devtools_clear').addEventListener('click', () => { logEl.value = ''; });
+
+      // --- FS helpers --------------------------------------------------------
+      function okFS() {
+        const ok = (typeof window.FS !== 'undefined');
+        statusBadge.textContent = ok ? 'FS: ready' : 'FS: missing';
+        statusBadge.style.background = ok ? '#14532d' : '#7f1d1d';
+        return ok;
+      }
+      function infoFS() {
+        const hasFS = (typeof FS !== 'undefined');
+        const hasIDB = (typeof IDBFS !== 'undefined');
+        $('#devtools_fsinfo').textContent =
+          'Module: ' + (typeof Module) + '\n' +
+          'FS: ' + (hasFS ? 'yes' : 'no') + '\n' +
+          'IDBFS: ' + (hasIDB ? 'yes' : 'no') + '\n' +
+          (hasFS ? 'cwd: ' + FS.cwd() : '');
+      }
+      function listDir(path) {
+        try {
+          const items = FS.readdir(path).filter(n => n !== '.' && n !== '..');
+          $('#devtools_list').innerHTML =
+            '<strong>' + path + '</strong>\n' + items.map(n => `<code>${n}</code>`).join('');
+        } catch (e) {
+          console.error('readdir failed:', e);
+        }
+      }
+      function toHex(u8) {
+        const hex = [];
+        for (let i=0; i<u8.length; i++) {
+          hex.push((i%16===0?('\n'+(i.toString(16).padStart(6,'0'))+': '):'') + u8[i].toString(16).padStart(2,'0'));
+        }
+        return hex.join(' ');
+      }
+      function viewFileUTF8(path) {
+        try {
+          const data = FS.readFile(path, { encoding: 'utf8' });
+          console.log(`--- ${path} (UTF‑8) ---\n` + data);
+        } catch (e) { console.error('readFile utf8 error:', e); }
+      }
+      function viewFileHex(path) {
+        try {
+          const data = FS.readFile(path, { encoding: 'binary' });
+          const u8 = (data instanceof Uint8Array) ? data : new Uint8Array(data);
+          console.log(`--- ${path} (HEX) ---` + toHex(u8));
+        } catch (e) { console.error('readFile hex error:', e); }
+      }
+      function downloadFile(path) {
+        try {
+          const data = FS.readFile(path); // Uint8Array
+          const blob = new Blob([data], { type: 'application/octet-stream' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = path.split('/').pop() || 'file.bin';
+          a.click();
+          URL.revokeObjectURL(a.href);
+        } catch (e) { console.error('download error:', e); }
+      }
+      function uploadTo(path, file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const u8 = new Uint8Array(reader.result);
+            FS.writeFile(path, u8, { encoding: 'binary' });
+            console.log('Uploaded to', path, '(', u8.byteLength, 'bytes )');
+          } catch (e) { console.error('writeFile error:', e); }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+      function del(path) {
+        try { FS.unlink(path); console.log('Deleted', path); } catch (e) { console.error('unlink error:', e); }
+      }
+      function syncPopulate() {
+        try {
+          FS.syncfs(true, (err) => err ? console.error('syncfs(true) error:', err) : console.log('Populated from IDB'));
+        } catch (e) { console.error('syncfs(true) threw:', e); }
+      }
+      function syncFlush() {
+        try {
+          FS.syncfs(false, (err) => err ? console.error('syncfs(false) error:', err) : console.log('Flushed to IDB'));
+        } catch (e) { console.error('syncfs(false) threw:', e); }
+      }
+
+      // Buttons
+      $('#btn_list_root').addEventListener('click', () => { if (okFS()) listDir('/'); infoFS(); });
+      $('#btn_list_idb').addEventListener('click', () => { if (okFS()) listDir('/idb'); infoFS(); });
+      $('#btn_populate').addEventListener('click', () => { if (okFS()) syncPopulate(); });
+      $('#btn_flush').addEventListener('click', () => { if (okFS()) syncFlush(); });
+
+      $('#btn_view_utf8').addEventListener('click', () => {
+        if (!okFS()) return;
+        const p = document.querySelector('#devtools_path').value.trim() || '/SData.bin';
+        viewFileUTF8(p);
+      });
+      $('#btn_view_hex').addEventListener('click', () => {
+        if (!okFS()) return;
+        const p = document.querySelector('#devtools_path').value.trim() || '/SData.bin';
+        viewFileHex(p);
+      });
+      $('#btn_download').addEventListener('click', () => {
+        if (!okFS()) return;
+        const p = document.querySelector('#devtools_path').value.trim() || '/SData.bin';
+        downloadFile(p);
+      });
+      $('#btn_delete').addEventListener('click', () => {
+        if (!okFS()) return;
+        const p = document.querySelector('#devtools_path').value.trim();
+        if (!p) return console.warn('Path required');
+        if (confirm('Delete ' + p + '?')) del(p);
+      });
+
+      $('#btn_upload').addEventListener('click', () => {
+        if (!okFS()) return;
+        const f = document.querySelector('#devtools_file').files[0];
+        const tgt = (document.querySelector('#devtools_target').value.trim() || '/SData.bin');
+        if (!f) return console.warn('Pick a file to upload');
+        uploadTo(tgt, f);
+      });
+
+      // Enable drag-drop upload onto panel
+      panel.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+      panel.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (!okFS()) return;
+        const files = Array.from(e.dataTransfer.files || []);
+        files.forEach((f) => uploadTo('/' + f.name, f));
+      });
+
+      // Initial state checks
+      setTimeout(() => { okFS(); infoFS(); }, 500);
+    })();
+    </script>
+    <!-- === END: In-Page Dev Tools === -->
+
+    <!-- 🔹 Keep the Emscripten glue script last -->
     <script async defer type="text/javascript" src="index.js"></script>
   </body>
 </html>
